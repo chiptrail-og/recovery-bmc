@@ -15,7 +15,7 @@ Configuration values can be provided by:
 Clone with submodules:
 
 ```bash
-git clone --recurse-submodules https://github.com/Who-are-u/recovery-bmc.git
+git clone --recurse-submodules https://github.com/chiptrail-og/recovery-bmc.git
 ```
 
 If already cloned:
@@ -37,6 +37,15 @@ Probe:
 ```bash
 uv run recovery-bmc --transport usb --probe
 ```
+
+Cross-platform USB env examples:
+
+- Windows:
+  - `set RECOVERY_BMC_USB_VENDOR_ID=0x0424`
+  - `set RECOVERY_BMC_USB_PRODUCT_ID=0x0007`
+- Linux/macOS:
+  - `export RECOVERY_BMC_USB_VENDOR_ID=0x0424`
+  - `export RECOVERY_BMC_USB_PRODUCT_ID=0x0007`
 
 Recover:
 
@@ -71,6 +80,13 @@ Probe:
 uv run recovery-bmc --transport i3c --probe --uart COM5
 ```
 
+Cross-platform UART examples:
+
+- Windows: `set RECOVERY_BMC_I3C_UART=COM5`
+- Linux/macOS: `export RECOVERY_BMC_I3C_UART=/dev/ttyACM0`
+
+Legacy env `I3C_BLASTER_UART` is also supported for compatibility.
+
 Recover:
 
 ```bash
@@ -96,6 +112,7 @@ These options are shared by both transports (USB and I3C), not I3C-only.
 - `RECOVERY_BMC_USB_VENDOR_ID`, `RECOVERY_BMC_USB_PRODUCT_ID`
 - `RECOVERY_BMC_DISCOVERY_TIMEOUT`, `RECOVERY_BMC_TRANSFER_TIMEOUT`
 - `RECOVERY_BMC_I3C_UART`, `RECOVERY_BMC_I3C_CLK_KHZ`
+- `I3C_BLASTER_UART` (legacy alias for `RECOVERY_BMC_I3C_UART`)
 - `RECOVERY_BMC_I3C_ADDR`, `RECOVERY_BMC_I3C_ENTDAA_ADDR`
 - `RECOVERY_BMC_POLL_INTERVAL`, `RECOVERY_BMC_STATE_TIMEOUT`
 - `RECOVERY_BMC_CHUNK_SIZE`, `RECOVERY_BMC_LOG_LEVEL`

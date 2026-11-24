@@ -103,3 +103,34 @@ def test_cli_accepts_multiple_app_images():
     parser = build_argument_parser()
     args = parser.parse_args(["--app-image", "app0.bin", "--app-image", "app1.bin"])
     assert [str(path) for path in args.app_image] == ["app0.bin", "app1.bin"]
+
+
+def test_cli_uses_legacy_i3c_blaster_uart_env_when_new_var_missing(monkeypatch):
+    monkeypatch.delenv("RECOVERY_BMC_I3C_UART", raising=False)
+    monkeypatch.setenv("I3C_BLASTER_UART", "/dev/ttyACM0")
+
+    parser = build_argument_parser()
+    args = parser.parse_args([])
+
+    assert args.uart == "/dev/ttyACM0"
+
+
+def test_cli_prefers_recovery_bmc_i3c_uart_over_legacy_env(monkeypatch):
+    monkeypatch.setenv("RECOVERY_BMC_I3C_UART", "COM5")
+    monkeypatch.setenv("I3C_BLASTER_UART", "/dev/ttyACM0")
+
+    parser = build_argument_parser()
+    args = parser.parse_args([])
+
+    assert args.uart == "COM5"
+
+
+def test_cli_reads_usb_ids_from_env(monkeypatch):
+    monkeypatch.setenv("RECOVERY_BMC_USB_VENDOR_ID", "0x1234")
+    monkeypatch.setenv("RECOVERY_BMC_USB_PRODUCT_ID", "0xabcd")
+
+    parser = build_argument_parser()
+    args = parser.parse_args([])
+
+    assert args.vendor_id == 0x1234
+    assert args.product_id == 0xABCD

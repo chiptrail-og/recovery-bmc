@@ -99,6 +99,9 @@ def build_argument_parser() -> argparse.ArgumentParser:
         Path(p.strip()) for p in app_core_images_env.split(",") if p.strip()
     ]
     i3c_addr_env = _env_or_default("RECOVERY_BMC_I3C_ADDR", "")
+    i3c_uart = _env_or_default("RECOVERY_BMC_I3C_UART", None)
+    if not i3c_uart:
+        i3c_uart = _env_or_default("I3C_BLASTER_UART", None)
     parser = argparse.ArgumentParser(description="Unified OCP Recovery agent over USB or I3C.")
     parser.add_argument(
         "--transport",
@@ -193,7 +196,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         type=float,
         default=float(_env_or_default("RECOVERY_BMC_TRANSFER_TIMEOUT", DEFAULT_TRANSFER_TIMEOUT)),
     )
-    parser.add_argument("--uart", type=str, default=_env_or_default("RECOVERY_BMC_I3C_UART", None))
+    parser.add_argument("--uart", type=str, default=i3c_uart)
     parser.add_argument(
         "--clk-khz",
         type=int,
