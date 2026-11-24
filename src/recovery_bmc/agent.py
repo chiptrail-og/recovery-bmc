@@ -3,12 +3,12 @@ from __future__ import annotations
 import struct
 import sys
 import time
+import logging
 
 from .errors import RecoveryError
 from .models import FifoStatus, RecoveryImages
 from .protocol import (
     PROT_CAP_MAGIC,
-    USB_CONTROL_MAX_BYTES,
     DeviceRecoveryStatus,
     DeviceStatus,
     RecoveryCommand,
@@ -22,14 +22,23 @@ class RecoveryAgent:
         transport: RecoveryTransport,
         poll_interval: float = 0.01,
         state_timeout: float = 30.0,
+        chunk_size: int = 64,
+        no_activate: bool = False,
+        transport_max_chunk_bytes: int | None = None,
     ) -> None:
         self.transport = transport
         self.cms = 0
         self.poll_interval = poll_interval
         self.state_timeout = state_timeout
+        self.chunk_size = chunk_size
+        self.no_activate = no_activate
+        self.transport_max_chunk_bytes = transport_max_chunk_bytes
+        self.logger = logging.getLogger(__name__)
 
     def run(self, images: RecoveryImages) -> None:
+        self.logger.info("Checking device capabilities")
         self._check_capabilities()
+        self.logger.info("Waiting for recovery mode")
         startup_deadline = time.monotonic() + self.state_timeout
         while True:
             status = self._device_status()
@@ -45,6 +54,7 @@ class RecoveryAgent:
             time.sleep(self.poll_interval)
 
         self.transport.write(RecoveryCommand.RECOVERY_CTRL, bytes((0, 0, 0)))
+        self.logger.info("Recovery control initialized")
 
         sent = [False, False, False]
         progress_deadline = time.monotonic() + self.state_timeout
@@ -72,12 +82,23 @@ class RecoveryAgent:
                 if sent[image_index]:
                     time.sleep(self.poll_interval)
                     continue
+                self.logger.info(
+                    "Sending image %d: %s (%d bytes)",
+                    image_index,
+                    images.name(image_index),
+                    len(image),
+                )
                 self._send_fifo_image(image)
                 sent[image_index] = True
+                self.logger.info("Image %d transferred", image_index)
+                if self.no_activate:
+                    self.logger.info("Skipping activate (--no-activate)")
+                    return
                 self._wait_for_recovery_pending()
                 self.transport.write(
                     RecoveryCommand.RECOVERY_CTRL, bytes((self.cms, 0, 0x0F))
                 )
+                self.logger.info("Activated image %d", image_index)
                 if all(sent):
                     return
                 progress_deadline = time.monotonic() + self.state_timeout
@@ -159,7 +180,9 @@ class RecoveryAgent:
                 self._check_deadline(deadline, "timed out waiting for FIFO space")
                 time.sleep(self.poll_interval)
                 continue
-            max_bytes = min(status.max_transfer_dwords * 4, USB_CONTROL_MAX_BYTES)
+            max_bytes = min(status.max_transfer_dwords * 4, self.chunk_size)
+            if self.transport_max_chunk_bytes is not None:
+                max_bytes = min(max_bytes, self.transport_max_chunk_bytes)
             chunk_length = min(
                 available_dwords * 4, max_bytes, len(padded_image) - offset
             )

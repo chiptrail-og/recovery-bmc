@@ -12,6 +12,20 @@ Configuration values can be provided by:
 
 ## Setup
 
+Clone with submodules:
+
+```bash
+git clone --recurse-submodules https://github.com/Who-are-u/recovery-bmc.git
+```
+
+If already cloned:
+
+```bash
+git submodule update --init --recursive
+```
+
+Install with uv:
+
 ```bash
 uv sync --all-groups
 ```
@@ -38,9 +52,18 @@ uv run recovery-bmc --transport usb \
 `--app-image` is optional and repeatable. It maps by order to recovery
 `image_index` 3, 4, 5, ...
 
+Single-image shorthand (legacy-style):
+
+```bash
+uv run recovery-bmc --transport usb firmware.bin --no-activate
+```
+
 ## I3C mode
 
-`i3cblaster` module must be importable (e.g. add `I3CBlaster/python` to `PYTHONPATH`).
+I3C transport follows a generic import path: it first uses normal Python
+module resolution (`import i3cblaster`). If not found, it falls back to
+`I3CBlaster/python` (submodule source), and you can override with
+`RECOVERY_BMC_I3CBLASTER_PYTHON`.
 
 Probe:
 
@@ -58,6 +81,15 @@ uv run recovery-bmc --transport i3c \
   --mcu-runtime mcu.bin
 ```
 
+Common options migrated from i3cblaster-bmc:
+
+- `--chunk-size`
+- `--no-activate`
+- `--log-level`
+- `--debug`
+
+These options are shared by both transports (USB and I3C), not I3C-only.
+
 ### Supported environment variables
 
 - `RECOVERY_BMC_TRANSPORT` (`usb` or `i3c`)
@@ -66,6 +98,8 @@ uv run recovery-bmc --transport i3c \
 - `RECOVERY_BMC_I3C_UART`, `RECOVERY_BMC_I3C_CLK_KHZ`
 - `RECOVERY_BMC_I3C_ADDR`, `RECOVERY_BMC_I3C_ENTDAA_ADDR`
 - `RECOVERY_BMC_POLL_INTERVAL`, `RECOVERY_BMC_STATE_TIMEOUT`
+- `RECOVERY_BMC_CHUNK_SIZE`, `RECOVERY_BMC_LOG_LEVEL`
+- `RECOVERY_BMC_FIRMWARE`
 - `RECOVERY_BMC_CALIPTRA_FMC_RT`, `RECOVERY_BMC_SOC_MANIFEST`, `RECOVERY_BMC_MCU_RUNTIME`
 - `RECOVERY_BMC_APP_CORE_IMAGES` (comma-separated paths)
 - `RECOVERY_BMC_DOTENV` (optional explicit dotenv path)

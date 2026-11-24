@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 from pathlib import Path
@@ -23,6 +24,7 @@ DEFAULT_POLL_INTERVAL = 0.01
 DEFAULT_STATE_TIMEOUT = 30.0
 DEFAULT_DISCOVERY_TIMEOUT = 10.0
 DEFAULT_TRANSFER_TIMEOUT = 10.0
+DEFAULT_CHUNK_SIZE = 64
 _DOTENV_LOADED = False
 
 
@@ -82,7 +84,13 @@ def parse_i3c_addr(value: str) -> int:
     return addr
 
 
+def _setup_logging(level_name: str) -> None:
+    level = getattr(logging, level_name.upper(), logging.INFO)
+    logging.basicConfig(level=level, format="%(levelname)s %(message)s")
+
+
 def build_argument_parser() -> argparse.ArgumentParser:
+    firmware = _env_or_default("RECOVERY_BMC_FIRMWARE", None)
     caliptra_fmc_rt = _env_or_default("RECOVERY_BMC_CALIPTRA_FMC_RT", None)
     soc_manifest = _env_or_default("RECOVERY_BMC_SOC_MANIFEST", None)
     mcu_runtime = _env_or_default("RECOVERY_BMC_MCU_RUNTIME", None)
@@ -96,6 +104,13 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--transport",
         choices=["usb", "i3c"],
         default=_env_or_default("RECOVERY_BMC_TRANSPORT", DEFAULT_TRANSPORT),
+    )
+    parser.add_argument(
+        "firmware",
+        nargs="?",
+        type=Path,
+        default=Path(firmware) if firmware else None,
+        help="Single firmware image shorthand (legacy-style).",
     )
     parser.add_argument("--probe", action="store_true")
     parser.add_argument(
@@ -119,6 +134,28 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action="append",
         default=app_core_defaults,
         help="Additional app image path (repeatable, mapped to image_index 3,4,5...)",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=int(_env_or_default("RECOVERY_BMC_CHUNK_SIZE", DEFAULT_CHUNK_SIZE)),
+        help="Bytes per INDIRECT_FIFO_DATA write (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default=str(_env_or_default("RECOVERY_BMC_LOG_LEVEL", "INFO")).upper(),
+        help="Logging level (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Shortcut for --log-level DEBUG.",
+    )
+    parser.add_argument(
+        "--no-activate",
+        action="store_true",
+        help="Stream the image but skip the final activate/boot step.",
     )
     parser.add_argument(
         "--poll-interval",
@@ -191,11 +228,20 @@ def _open_transport(args) -> RecoveryTransport:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
-    image_paths = (args.caliptra_fmc_rt, args.soc_manifest, args.mcu_runtime)
-    if not args.probe and any(path is None for path in image_paths):
+    if args.debug:
+        args.log_level = "DEBUG"
+    _setup_logging(args.log_level)
+
+    if args.firmware is not None and args.caliptra_fmc_rt is None:
+        args.caliptra_fmc_rt = args.firmware
+
+    image_paths = (args.caliptra_fmc_rt, args.soc_manifest, args.mcu_runtime, args.firmware)
+    if args.chunk_size <= 0:
+        parser.error("--chunk-size must be > 0")
+    if not args.probe and all(path is None for path in image_paths) and not args.app_image:
         parser.error(
-            "--caliptra-fmc-rt, --soc-manifest, and --mcu-runtime are required "
-            "unless --probe is used"
+            "provide firmware images (--caliptra-fmc-rt/--soc-manifest/--mcu-runtime, "
+            "--app-image, or positional firmware) unless --probe is used"
         )
 
     transport = None
@@ -205,16 +251,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             transport,
             poll_interval=args.poll_interval,
             state_timeout=args.state_timeout,
+            chunk_size=args.chunk_size,
+            no_activate=args.no_activate,
+            transport_max_chunk_bytes=64 if args.transport == "usb" else None,
         )
         if args.probe:
             agent.probe()
             return 0
 
+        default_image = args.caliptra_fmc_rt.read_bytes() if args.caliptra_fmc_rt else b""
         images = RecoveryImages(
-            caliptra_fmc_rt=args.caliptra_fmc_rt.read_bytes(),
-            soc_manifest=args.soc_manifest.read_bytes(),
-            mcu_runtime=args.mcu_runtime.read_bytes(),
-            app_core_images=tuple(path.read_bytes() for path in args.app_core_image),
+            caliptra_fmc_rt=default_image,
+            soc_manifest=args.soc_manifest.read_bytes() if args.soc_manifest else default_image,
+            mcu_runtime=args.mcu_runtime.read_bytes() if args.mcu_runtime else default_image,
+            app_core_images=tuple(path.read_bytes() for path in args.app_image),
         )
         agent.run(images)
         return 0

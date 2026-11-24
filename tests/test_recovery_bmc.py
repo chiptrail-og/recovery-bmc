@@ -7,6 +7,7 @@ from recovery_bmc import (
     RecoveryAgent,
     RecoveryCommand,
     RecoveryError,
+    build_argument_parser,
     parse_i3c_addr,
     parse_usb_id,
 )
@@ -83,3 +84,22 @@ def test_recovery_images_support_app_core_indices():
     assert images.get(4) == b"e"
     with pytest.raises(RecoveryError):
         images.get(5)
+
+
+def test_cli_accepts_single_firmware_positional():
+    parser = build_argument_parser()
+    args = parser.parse_args(["firmware.bin", "--transport", "i3c"])
+    assert str(args.firmware).endswith("firmware.bin")
+
+
+def test_cli_accepts_chunk_size_and_no_activate():
+    parser = build_argument_parser()
+    args = parser.parse_args(["--chunk-size", "128", "--no-activate"])
+    assert args.chunk_size == 128
+    assert args.no_activate is True
+
+
+def test_cli_accepts_multiple_app_images():
+    parser = build_argument_parser()
+    args = parser.parse_args(["--app-image", "app0.bin", "--app-image", "app1.bin"])
+    assert [str(path) for path in args.app_image] == ["app0.bin", "app1.bin"]

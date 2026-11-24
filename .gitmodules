@@ -1,0 +1,3 @@
+[submodule "I3CBlaster"]
+	path = I3CBlaster
+	url = https://github.com/xyphro/I3CBlaster.git
