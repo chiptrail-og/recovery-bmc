@@ -1,0 +1,15 @@
+# Example dnsmasq config for recovery-bmc Ethernet pre-environment.
+# Use scripts/netboot/start_dnsmasq.sh for a generated runtime config,
+# or copy this file and customize directly.
+
+port=0
+interface=enx001122334455
+bind-interfaces
+listen-address=192.168.88.1
+
+dhcp-range=192.168.88.50,192.168.88.150,12h
+dhcp-authoritative
+log-dhcp
+
+enable-tftp
+tftp-root=/abs/path/to/recovery-bmc/scripts/netboot/tftp-root

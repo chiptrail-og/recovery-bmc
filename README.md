@@ -106,6 +106,54 @@ Common options migrated from i3cblaster-bmc:
 
 These options are shared by both transports (USB and I3C), not I3C-only.
 
+## Ethernet pre-environment (Linux dnsmasq)
+
+`recovery-bmc` itself does not embed DHCP/TFTP services. For Ethernet boot
+workflows, use external services. This repo provides a minimal helper in
+[`scripts/netboot/`](/home/dev/recovery-bmc/scripts/netboot).
+
+Install dnsmasq (Ubuntu/Debian):
+
+```bash
+sudo -A apt update
+sudo -A apt install -y dnsmasq
+```
+
+Start DHCP+TFTP:
+
+```bash
+sudo -A ./scripts/netboot/start_dnsmasq.sh \
+  --interface enx001122334455 \
+  --dhcp-range 192.168.88.50,192.168.88.150,12h \
+  --tftp-root ./scripts/netboot/tftp-root \
+  --bind-address 192.168.88.1
+```
+
+Or Python script:
+
+```bash
+sudo -A python3 ./scripts/netboot/start_dnsmasq.py \
+  --interface enx001122334455 \
+  --dhcp-range 192.168.88.50,192.168.88.150,12h \
+  --tftp-root ./scripts/netboot/tftp-root \
+  --bind-address 192.168.88.1
+```
+
+Env overrides (for both scripts):
+
+- `RECOVERY_BMC_NETBOOT_INTERFACE`
+- `RECOVERY_BMC_NETBOOT_DHCP_RANGE`
+- `RECOVERY_BMC_TFTP_ROOT`
+- `RECOVERY_BMC_NETBOOT_BIND_ADDRESS`
+
+Files to prepare:
+
+- `boot.cfg`/TOC file expected by your boot-source flow
+- firmware images referenced by that TOC
+
+Reference template:
+- [`scripts/netboot/dnsmasq.conf.example`](/home/dev/recovery-bmc/scripts/netboot/dnsmasq.conf.example)
+
 ### Supported environment variables
 
 - `RECOVERY_BMC_TRANSPORT` (`usb` or `i3c`)
